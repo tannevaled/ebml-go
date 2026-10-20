@@ -491,10 +491,25 @@ func TestReadValue_LargeBinary(t *testing.T) {
 		t.Errorf("Expected %d bytes read back unchanged", len(b))
 	}
 
-	_, err = vd.decode(DataTypeBinary, bytes.NewReader(b[:3*maxInitialReadSize]), uint64(len(b)))
-	if !errors.Is(err, io.ErrUnexpectedEOF) {
-		t.Errorf("Expected error against short (%d bytes) Binary: %v, got: %v",
-			3*maxInitialReadSize, io.ErrUnexpectedEOF, err)
+	// Data ending inside a buffer, and data ending exactly where a buffer ends,
+	// so that the next read finds nothing at all: both are short.
+	for _, l := range []int{3 * maxInitialReadSize, maxInitialReadSize, 2 * maxInitialReadSize} {
+		_, err = vd.decode(DataTypeBinary, bytes.NewReader(b[:l]), uint64(len(b)))
+		if !errors.Is(err, io.ErrUnexpectedEOF) {
+			t.Errorf("Expected error against short (%d bytes) Binary: %v, got: %v",
+				l, io.ErrUnexpectedEOF, err)
+		}
+	}
+}
+
+func TestReadFull_EndsAtBufferBoundary(t *testing.T) {
+	b := make([]byte, maxInitialReadSize)
+	got, err := readFull(bytes.NewReader(b), 2*maxInitialReadSize)
+	if err != io.ErrUnexpectedEOF {
+		t.Errorf("Expected %v, got: %v", io.ErrUnexpectedEOF, err)
+	}
+	if len(got) != maxInitialReadSize {
+		t.Errorf("Expected the %d bytes that were there, got: %d", maxInitialReadSize, len(got))
 	}
 }
 
